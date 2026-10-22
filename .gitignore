@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+#Visual studio code settings
+.vscode
+
+#Data
+data/
