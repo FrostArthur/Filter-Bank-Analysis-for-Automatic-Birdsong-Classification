@@ -222,3 +222,5 @@ __marimo__/
 #Visual studio code settings
 .vscode
 
+#Data
+.data

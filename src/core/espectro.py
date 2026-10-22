@@ -1,6 +1,5 @@
 import numpy as np
 N_PUNTOS = 88200
-freq = 44100
 
 #Calcular el espectro de un audio (según el pseudocódigo del docente)
 def calcularEspectro(audio):
