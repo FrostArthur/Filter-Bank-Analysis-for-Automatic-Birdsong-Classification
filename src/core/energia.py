@@ -6,6 +6,8 @@ PRIMER_PUNTO_CORTE = 238
 SEGUNDO_PUNTO_CORTE = 1283
 TERCERA_PUNTO_CORTE = 4552
 
+PUNTOS_CORTE = [PRIMER_PUNTO_CORTE, SEGUNDO_PUNTO_CORTE, TERCERA_PUNTO_CORTE]
+
 #Obtener vector de energías de la señal de audio
 def obtenerVectorEnergias(senal):
     energia1 = np.mean(senal[:PRIMER_PUNTO_CORTE]**2)
