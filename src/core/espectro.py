@@ -21,8 +21,6 @@ def EspectroPromedio(lista_audios):
     magnitudes = [calcularEspectro(audio) for audio in lista_audios]
     return np.mean(magnitudes, axis=0)
 
-
-
 #Graficar espectros promedio de cada clase del banco de señales
 def graficar_espectros_promedio(k_max=None):
     directorio_datos = Path(__file__).resolve().parents[2] / "data" / "processed"
@@ -81,5 +79,6 @@ def graficar_espectros_promedio(k_max=None):
 
     figura.tight_layout()
     plt.show()
-    
-graficar_espectros_promedio()
+
+if __name__ == "__main__":
+    graficar_espectros_promedio()

@@ -12,11 +12,8 @@ def filtro_media_movil_matematico(x, M):
     y = x.astype(np.result_type(x.dtype, np.float64), copy=True)
 
     if M < len(x):
-        acumulado = np.concatenate((
-            np.array([0.0]),
-            np.cumsum(x, dtype=np.result_type(x.dtype, np.float64)),
-        ))
-        y[M:] = (acumulado[M:len(x)] - acumulado[:len(x) - M]) / M
+        acumulado = np.concatenate(([0.0], np.cumsum(x, dtype=np.float64)))
+        y[M-1:] = (acumulado[M:] - acumulado[:-M]) / M
 
     return y
 
