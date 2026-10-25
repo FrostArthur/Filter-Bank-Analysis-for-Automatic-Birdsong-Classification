@@ -16,7 +16,7 @@ from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
 VENTANA_MM = 5
 RAIZ = Path(__file__).resolve().parents[2]
 DIR_DATOS = RAIZ / "data" / "processed"
-RUTA_MODELO = RAIZ / "models" / "modelo_aves.json"
+RUTA_MODELO = RAIZ / "data" / "models" / "modelo_aves.json"
 
 
 def preprocesar(audio):
