@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import soundfile as sf
 
+from src.core.energia import PUNTOS_CORTE
 from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
 
 N_PUNTOS = 88200
@@ -61,6 +62,10 @@ def graficar_espectros_promedio(k_max=None):
             label=clase,
             color=colores[clase],
         )
+
+    for punto_corte in PUNTOS_CORTE:
+        if punto_corte <= k_fin:
+            eje.axvline(punto_corte, color="crimson", linestyle="--", linewidth=1.2)
 
     eje.set_title("Espectros promedio por tipo de ave")
     eje.set_xlabel("k")

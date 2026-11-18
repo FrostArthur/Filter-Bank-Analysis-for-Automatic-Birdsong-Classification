@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from src.core.energia import FIN_ESPECTRO_POSITIVO, PUNTOS_CORTE, obtener_vector_energias_promedio
+from src.core.energia import PUNTOS_CORTE, obtener_vector_energias_promedio
 from src.core.espectro import CLASES, FS, N_PUNTOS, calcularEspectro
 from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
 
@@ -50,7 +50,7 @@ def entrenar():
 
 def guardar_modelo(vectores_por_clase):
     RUTA_MODELO.parent.mkdir(parents=True, exist_ok=True)
-    limites_bandas = [0, *PUNTOS_CORTE, FIN_ESPECTRO_POSITIVO]
+    limites_bandas = [0, *PUNTOS_CORTE, N_PUNTOS]
     modelo = {
         "fs": FS,
         "n_puntos": N_PUNTOS,

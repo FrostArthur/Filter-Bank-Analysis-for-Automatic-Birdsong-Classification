@@ -71,6 +71,9 @@ def dibujar(ejes, resultado, clases, vectores):
         ini = max(hz[i], 5.0)
         ejes[1].axvspan(ini, hz[i + 1], alpha=0.15, color=COLORES_BANDA[i],
                         label=f"Banda {i + 1}")
+    for punto_corte in PUNTOS_CORTE:
+        frecuencia_corte = punto_corte * FS / N_PUNTOS
+        ejes[1].axvline(frecuencia_corte, color="crimson", linestyle="--", linewidth=1.2)
     ejes[1].set_xlim(5, FS / 2)
     ejes[1].legend(loc="upper right", fontsize=8)
  

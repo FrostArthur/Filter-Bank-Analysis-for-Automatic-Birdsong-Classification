@@ -4,9 +4,7 @@ PRIMER_PUNTO_CORTE = 238
 SEGUNDO_PUNTO_CORTE = 4552
 TERCER_PUNTO_CORTE = 14000
 
-
 PUNTOS_CORTE = [PRIMER_PUNTO_CORTE, SEGUNDO_PUNTO_CORTE, TERCER_PUNTO_CORTE]
-
 
 def obtener_vector_energias(espectro):
     energia_primera_banda = np.mean(espectro[:PRIMER_PUNTO_CORTE] ** 2)
