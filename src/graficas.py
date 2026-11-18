@@ -7,12 +7,10 @@ from src.core.espectro import FS, N_PUNTOS
 NOMBRES = {
     "brant_goose": "Barnacla carinegra",
     "common_snipe": "Agachadiza común",
-    "red_knot": "Correlimos gordo",
 }
 COLORES_CLASE = {
     "brant_goose": "tab:blue",
     "common_snipe": "tab:orange",
-    "red_knot": "tab:green",
 }
 COLORES_BANDA = ("tab:gray", "tab:purple", "tab:cyan", "tab:olive")
  

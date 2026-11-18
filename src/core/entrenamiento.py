@@ -1,30 +1,25 @@
-"""Fase de entrenamiento: genera models/modelo_aves.json
-
-Ejecutar desde la raíz del proyecto:
-    python -m src.core.entrenamiento
-"""
 import json
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
 
-from src.core.energia import PUNTOS_CORTE, obtenerVectorEnergias
-from src.core.espectro import CLASES, FS, N_PUNTOS, EspectroPromedio, calcularEspectro
+from src.core.energia import FIN_ESPECTRO_POSITIVO, PUNTOS_CORTE, obtener_vector_energias_promedio
+from src.core.espectro import CLASES, FS, N_PUNTOS, calcularEspectro
 from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
 
-VENTANA_MM = 5
+VENTANA_MEDIA_MOVIL = 5
+METODO_ENTRENAMIENTO = "promedio_vectores_energia"
 RAIZ = Path(__file__).resolve().parents[2]
 DIR_DATOS = RAIZ / "data" / "processed"
 RUTA_MODELO = RAIZ / "data" / "models" / "modelo_aves.json"
 
 
 def preprocesar(audio):
-    """MISMO preprocesado para entrenamiento y tiempo real: mono -> media móvil."""
     audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim == 2:
         audio = audio.mean(axis=1)
-    return aplicar_filtro_media_movil(audio, VENTANA_MM)
+    return aplicar_filtro_media_movil(audio, VENTANA_MEDIA_MOVIL)
 
 
 def cargar_audios(clase):
@@ -33,71 +28,72 @@ def cargar_audios(clase):
         raise FileNotFoundError(f"No se encontraron audios WAV para {clase}")
     audios = []
     for archivo in archivos:
-        audio, fs = sf.read(archivo)
-        if fs != FS:
-            raise ValueError(f"{archivo.name}: fs={fs} Hz, se esperaba {FS} Hz")
+        audio, frecuencia_muestreo = sf.read(archivo)
+        if frecuencia_muestreo != FS:
+            raise ValueError(f"{archivo.name}: frecuencia de {frecuencia_muestreo} Hz; se esperaba {FS} Hz")
+        if len(audio) != N_PUNTOS:
+            raise ValueError(f"{archivo.name}: debe tener {N_PUNTOS} muestras")
         audios.append(preprocesar(audio))
     return audios
 
 
 def entrenar():
-    vectores = []
+    vectores_por_clase = []
     for clase in CLASES:
         audios = cargar_audios(clase)
-        espectro_prom = EspectroPromedio(audios)
-        vector = obtenerVectorEnergias(espectro_prom)
-        vectores.append(vector)
-        print(f"{clase}: {len(audios)} clips -> energías {vector}")
-    guardar_modelo(np.array(vectores))
+        espectros = [calcularEspectro(audio) for audio in audios]
+        vector_energias_promedio = obtener_vector_energias_promedio(espectros)
+        vectores_por_clase.append(vector_energias_promedio)
+        print(f"{clase}: {len(audios)} clips -> energías {vector_energias_promedio}")
+    guardar_modelo(np.array(vectores_por_clase))
 
 
-def guardar_modelo(vectores):
-    """Guarda el modelo en JSON legible: un vector de 4 energías por clase."""
+def guardar_modelo(vectores_por_clase):
     RUTA_MODELO.parent.mkdir(parents=True, exist_ok=True)
-    limites = [0, *PUNTOS_CORTE, N_PUNTOS // 2]
+    limites_bandas = [0, *PUNTOS_CORTE, FIN_ESPECTRO_POSITIVO]
     modelo = {
         "fs": FS,
         "n_puntos": N_PUNTOS,
-        "ventana_media_movil": VENTANA_MM,
+        "ventana_media_movil": VENTANA_MEDIA_MOVIL,
+        "metodo_entrenamiento": METODO_ENTRENAMIENTO,
         "subbandas": [
             {
-                "banda": i + 1,
-                "bin_inicio": a,
-                "bin_fin": b,
-                "hz_inicio": a * FS / N_PUNTOS,
-                "hz_fin": b * FS / N_PUNTOS,
+                "banda": indice_banda + 1,
+                "bin_inicio": inicio_banda,
+                "bin_fin": fin_banda,
+                "hz_inicio": inicio_banda * FS / N_PUNTOS,
+                "hz_fin": fin_banda * FS / N_PUNTOS,
             }
-            for i, (a, b) in enumerate(zip(limites[:-1], limites[1:]))
+            for indice_banda, (inicio_banda, fin_banda)
+            in enumerate(zip(limites_bandas[:-1], limites_bandas[1:]))
         ],
         "puntos_corte": list(PUNTOS_CORTE),
         "vectores_energia": {
-            clase: [float(e) for e in v] for clase, v in zip(CLASES, vectores)
+            clase: vector_energias.tolist()
+            for clase, vector_energias in zip(CLASES, vectores_por_clase)
         },
     }
-    with open(RUTA_MODELO, "w", encoding="utf-8") as f:
-        json.dump(modelo, f, indent=2, ensure_ascii=False)
+    with open(RUTA_MODELO, "w", encoding="utf-8") as archivo_modelo:
+        json.dump(modelo, archivo_modelo, indent=2, ensure_ascii=False)
     print(f"Modelo guardado en {RUTA_MODELO}")
 
 
-# ----------------------------- Tiempo real -----------------------------
 def cargar_modelo(ruta=RUTA_MODELO):
-    with open(ruta, encoding="utf-8") as f:
-        d = json.load(f)
-    assert d["fs"] == FS and d["n_puntos"] == N_PUNTOS, \
-        "El modelo se entrenó con otra fs o longitud de señal"
-    assert tuple(d["puntos_corte"]) == tuple(PUNTOS_CORTE), \
-        "Los puntos de corte del modelo no coinciden con energia.py"
-    clases = list(d["vectores_energia"].keys())
-    vectores = np.array([d["vectores_energia"][c] for c in clases])
-    return clases, vectores
-
-
-def clasificar(senal_mic, clases, vectores):
-    """senal_mic: exactamente N_PUNTOS muestras (2 s a 44100 Hz)."""
-    espectro = calcularEspectro(preprocesar(senal_mic))
-    v = obtenerVectorEnergias(espectro)
-    distancias = np.linalg.norm(vectores - v, axis=1)   # o np.abs(...).sum(axis=1)
-    return clases[int(np.argmin(distancias))], distancias
+    with open(ruta, encoding="utf-8") as archivo_modelo:
+        modelo = json.load(archivo_modelo)
+    if modelo.get("metodo_entrenamiento") != METODO_ENTRENAMIENTO:
+        raise ValueError("El modelo usa otro procedimiento de entrenamiento. Vuelve a entrenar.")
+    if modelo["fs"] != FS or modelo["n_puntos"] != N_PUNTOS:
+        raise ValueError("El modelo usa otra frecuencia de muestreo o longitud de señal")
+    if modelo["puntos_corte"] != PUNTOS_CORTE:
+        raise ValueError("Los puntos de corte del modelo no coinciden con energia.py")
+    if modelo["ventana_media_movil"] != VENTANA_MEDIA_MOVIL:
+        raise ValueError("El modelo usa otra ventana de media móvil")
+    clases = list(modelo["vectores_energia"])
+    vectores_por_clase = np.array([modelo["vectores_energia"][clase] for clase in clases])
+    if set(clases) != set(CLASES) or vectores_por_clase.shape != (len(CLASES), len(PUNTOS_CORTE) + 1):
+        raise ValueError("Las clases o las bandas del modelo no coinciden con la configuración actual")
+    return clases, vectores_por_clase
 
 
 if __name__ == "__main__":

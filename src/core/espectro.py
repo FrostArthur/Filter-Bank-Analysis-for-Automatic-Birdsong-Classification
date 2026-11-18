@@ -8,7 +8,7 @@ from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
 
 N_PUNTOS = 88200
 FS = 44100
-CLASES = ("brant_goose", "common_snipe", "red_knot")
+CLASES = ("brant_goose", "common_snipe")
 
 #Calcular el espectro de un audio (según el pseudocódigo del docente)
 def calcularEspectro(audio):
@@ -29,7 +29,6 @@ def graficar_espectros_promedio(k_max=None):
     colores = {
         "brant_goose": "tab:blue",
         "common_snipe": "tab:orange",
-        "red_knot": "tab:green",
     }
 
     figura, eje = plt.subplots(figsize=(12, 6))

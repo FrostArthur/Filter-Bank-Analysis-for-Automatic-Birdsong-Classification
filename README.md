@@ -2,7 +2,7 @@
 
 Clasificador de cantos de aves en Python. A partir de un clip de audio de 2 s calcula su espectro con la FFT, lo resume en un **vector de energías por sub-bandas** y lo compara, por **mínima distancia**, con el vector de cada clase obtenido en el entrenamiento. Incluye una interfaz sencilla que graba desde el micrófono, clasifica y muestra las gráficas del proceso.
 
-> **Estado:** versión inicial. El pipeline completo (descarga, entrenamiento y tiempo real) funciona, pero una de las tres especies debe reemplazarse (ver [Estado y pendientes](#estado-y-pendientes)).
+> **Estado:** dos especies: barnacla carinegra y agachadiza común. El entrenamiento promedia los vectores de energía calculados individualmente para cada audio.
 
 ---
 
@@ -19,7 +19,7 @@ audio de 2 s (88200 muestras a 44100 Hz)
                └─ vector de 4 componentes
 ```
 
-- **Entrenamiento:** para cada clase se promedian los espectros |X(k)| de todos sus clips y, del espectro promedio, se calcula el vector de energías. Los 3 vectores se guardan en `models/modelo_aves.json`.
+- **Entrenamiento:** cada audio se convierte a mono, se filtra y se transforma con la FFT. Se calcula su vector de cuatro energías con la media de |X(k)|² de cada banda. Después se promedian esos vectores por clase, componente a componente, y los 2 vectores resultantes se guardan en `data/models/modelo_aves.json`.
 - **Tiempo real:** se captura una señal de exactamente 2 s del micrófono, se procesa igual y se asigna la clase cuyo vector esté a **menor distancia** (euclidiana o resta absoluta, a elección en la interfaz).
 
 ### Sub-bandas
@@ -41,7 +41,6 @@ Los audios provienen de [xeno-canto.org](https://xeno-canto.org) (calidad A).
 |--------------------|--------------------|---------------------|
 | `brant_goose`      | Barnacla carinegra | *Branta bernicla*   |
 | `common_snipe`     | Agachadiza común   | *Gallinago gallinago* |
-| `red_knot`         | Correlimos gordo   | *Calidris canutus*  |
 
 ---
 
@@ -151,17 +150,17 @@ Si el modelo no existe, la aplicación avisa que hay que ejecutar primero el pas
   "fs": 44100,
   "n_puntos": 88200,
   "ventana_media_movil": 5,
+  "metodo_entrenamiento": "promedio_vectores_energia",
   "subbandas": [{"banda": 1, "bin_inicio": 0, "bin_fin": 238, "hz_inicio": 0.0, "hz_fin": 119.0}, "..."],
   "puntos_corte": [238, 1283, 4552],
   "vectores_energia": {
     "brant_goose": [e1, e2, e3, e4],
-    "common_snipe": [e1, e2, e3, e4],
-    "red_knot": [e1, e2, e3, e4]
+    "common_snipe": [e1, e2, e3, e4]
   }
 }
 ```
 
-Al cargarlo, `cargar_modelo` verifica que `fs`, `n_puntos` y los puntos de corte coincidan con el código; si no, falla con un mensaje claro en lugar de clasificar mal.
+Al cargarlo, `cargar_modelo` verifica el método de entrenamiento, la frecuencia de muestreo, el número de muestras, el filtro, los cortes y las dimensiones de los vectores. Los modelos anteriores deben regenerarse con `python -m src.core.entrenamiento`.
 
 ---
 
@@ -177,7 +176,6 @@ Al cargarlo, `cargar_modelo` verifica que `fs`, `n_puntos` y los puntos de corte
 
 ## Estado y pendientes
 
-- **Correlimos gordo (`red_knot`):** la mayoría de sus grabaciones son ruido blanco, por lo que no sirve como clase. Hay que reemplazarlo por otra especie (ver [Cambiar una especie](#cambiar-una-especie)).
 - **Sensibilidad al volumen:** las energías son absolutas, así que la distancia al micrófono, la ganancia y el volumen del parlante afectan el resultado. Posible mejora: normalizar los vectores (por ejemplo, dividirlos entre su suma) en entrenamiento y en tiempo real.
 - **Ruido de baja frecuencia y offset DC:** afectan la banda 1. Posible mejora: restar la media de la señal en `preprocesar`.
 - **Validación:** falta medir la precisión con clips que no hayan entrado al promedio de entrenamiento.
