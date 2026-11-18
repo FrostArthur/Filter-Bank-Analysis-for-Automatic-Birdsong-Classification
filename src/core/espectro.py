@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import soundfile as sf
 
 from src.core.energia import PUNTOS_CORTE
-from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
+from src.core.preprocesamiento import AudioSilenciosoError, preparar_audio
 
 N_PUNTOS = 88200
 FS = 44100
@@ -42,7 +42,6 @@ def graficar_espectros_promedio(k_max=None):
         audios = []
         for archivo in archivos:
             audio, frecuencia_muestreo = sf.read(archivo)
-            audio = aplicar_filtro_media_movil(audio, 5)
 
             if frecuencia_muestreo != FS:
                 raise ValueError(
@@ -50,10 +49,13 @@ def graficar_espectros_promedio(k_max=None):
                     f"{frecuencia_muestreo} Hz; se esperaba {FS} Hz"
                 )
 
-            if audio.ndim == 2:
-                audio = audio.mean(axis=1)
+            try:
+                audios.append(preparar_audio(audio, FS))
+            except AudioSilenciosoError:
+                continue
 
-            audios.append(audio)
+        if not audios:
+            raise ValueError(f"No hay audios con nivel suficiente para {clase}")
 
         espectro_promedio = EspectroPromedio(audios)
         eje.plot(

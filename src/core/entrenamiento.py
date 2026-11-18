@@ -6,9 +6,10 @@ import soundfile as sf
 
 from src.core.energia import PUNTOS_CORTE, obtener_vector_energias_promedio
 from src.core.espectro import CLASES, FS, N_PUNTOS, calcularEspectro
-from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
+from src.core.preprocesamiento import (
+    AudioSilenciosoError, VENTANA_MEDIA_MOVIL, obtener_parametros_preprocesamiento, preparar_audio,
+)
 
-VENTANA_MEDIA_MOVIL = 5
 METODO_ENTRENAMIENTO = "promedio_vectores_energia"
 RAIZ = Path(__file__).resolve().parents[2]
 DIR_DATOS = RAIZ / "data" / "processed"
@@ -16,10 +17,7 @@ RUTA_MODELO = RAIZ / "data" / "models" / "modelo_aves.json"
 
 
 def preprocesar(audio):
-    audio = np.asarray(audio, dtype=np.float64)
-    if audio.ndim == 2:
-        audio = audio.mean(axis=1)
-    return aplicar_filtro_media_movil(audio, VENTANA_MEDIA_MOVIL)
+    return preparar_audio(audio, FS)
 
 
 def cargar_audios(clase):
@@ -33,7 +31,12 @@ def cargar_audios(clase):
             raise ValueError(f"{archivo.name}: frecuencia de {frecuencia_muestreo} Hz; se esperaba {FS} Hz")
         if len(audio) != N_PUNTOS:
             raise ValueError(f"{archivo.name}: debe tener {N_PUNTOS} muestras")
-        audios.append(preprocesar(audio))
+        try:
+            audios.append(preprocesar(audio))
+        except AudioSilenciosoError:
+            print(f"Omitido por baja amplitud: {archivo.name}")
+    if not audios:
+        raise ValueError(f"No hay audios con nivel suficiente para {clase}")
     return audios
 
 
@@ -56,6 +59,7 @@ def guardar_modelo(vectores_por_clase):
         "n_puntos": N_PUNTOS,
         "ventana_media_movil": VENTANA_MEDIA_MOVIL,
         "metodo_entrenamiento": METODO_ENTRENAMIENTO,
+        "preprocesamiento": obtener_parametros_preprocesamiento(),
         "subbandas": [
             {
                 "banda": indice_banda + 1,
@@ -83,6 +87,8 @@ def cargar_modelo(ruta=RUTA_MODELO):
         modelo = json.load(archivo_modelo)
     if modelo.get("metodo_entrenamiento") != METODO_ENTRENAMIENTO:
         raise ValueError("El modelo usa otro procedimiento de entrenamiento. Vuelve a entrenar.")
+    if modelo.get("preprocesamiento") != obtener_parametros_preprocesamiento():
+        raise ValueError("El modelo usa otro preprocesamiento. Vuelve a entrenar.")
     if modelo["fs"] != FS or modelo["n_puntos"] != N_PUNTOS:
         raise ValueError("El modelo usa otra frecuencia de muestreo o longitud de señal")
     if modelo["puntos_corte"] != PUNTOS_CORTE:
