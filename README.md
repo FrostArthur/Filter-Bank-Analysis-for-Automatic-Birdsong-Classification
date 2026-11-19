@@ -2,7 +2,7 @@
 
 Clasificador de cantos de aves en Python. A partir de un clip de audio de 2 s calcula su espectro con la FFT, lo resume en un **vector de energías por sub-bandas** y lo compara, por **mínima distancia**, con el vector de cada clase obtenido en el entrenamiento. Incluye una interfaz sencilla que graba desde el micrófono, clasifica y muestra las gráficas del proceso.
 
-> **Estado:** versión inicial. El pipeline completo (descarga, entrenamiento y tiempo real) funciona, pero una de las tres especies debe reemplazarse (ver [Estado y pendientes](#estado-y-pendientes)).
+> **Estado:** dos especies: barnacla carinegra y agachadiza común. El entrenamiento promedia los vectores de energía calculados individualmente para cada audio.
 
 ---
 
@@ -13,25 +13,32 @@ El mismo procesamiento se aplica en las dos fases, para que los vectores sean co
 ```
 audio de 2 s (88200 muestras a 44100 Hz)
    └─ mono
-      └─ filtro de media móvil (ventana M = 5)
-         └─ FFT  →  |X(k)|
-            └─ energía por sub-banda:  E = (1/N) · Σ |X(k)|²   (N = bins de la banda)
-               └─ vector de 4 componentes
+      └─ quitar desplazamiento DC y rechazar RMS < 0,001
+         └─ filtro pasaaltos Butterworth de 300 Hz (orden 2, ida y vuelta)
+            └─ filtro de media móvil (ventana M = 5)
+               └─ ajustar amplitud hacia RMS = 0,05, con ganancia máxima 50 y pico máximo 0,95
+                  └─ FFT  →  |X(k)|
+                     └─ energía por sub-banda: E = (1/N) · Σ |X(k)|² (N = bins de la banda)
+                        └─ vector de 4 componentes
 ```
 
-- **Entrenamiento:** para cada clase se promedian los espectros |X(k)| de todos sus clips y, del espectro promedio, se calcula el vector de energías. Los 3 vectores se guardan en `models/modelo_aves.json`.
+- **Entrenamiento:** cada audio se convierte a mono, se filtra y se transforma con la FFT. Se calcula su vector de cuatro energías con la media de |X(k)|² de cada banda. Después se promedian esos vectores por clase, componente a componente, y los 2 vectores resultantes se guardan en `data/models/modelo_aves.json`.
 - **Tiempo real:** se captura una señal de exactamente 2 s del micrófono, se procesa igual y se asigna la clase cuyo vector esté a **menor distancia** (euclidiana o resta absoluta, a elección en la interfaz).
+
+El preprocesamiento está compartido en `src/core/preprocesamiento.py`. Se filtra y se ajusta la amplitud del audio antes de la FFT; no se normalizan las energías ni se cambian las distancias o el promedio por clase. El nivel se mide sin DC antes de amplificar: si el RMS es menor que `0.001`, se muestra «Sin clasificar: audio de baja amplitud» y se limpian los resultados anteriores. El mismo control excluye clips demasiado débiles del entrenamiento. El umbral y los límites de ganancia se configuran en ese archivo.
+
+La ganancia intenta llevar el audio filtrado a RMS `0.05`, pero se reduce si superaría el factor `50` o un pico absoluto de `0.95`. Esos límites evitan amplificar sin límite o saturar el audio. El control de amplitud no distingue por sí solo ruido fuerte de canto.
 
 ### Sub-bandas
 
-Con N = 88200 y fs = 44100 Hz, cada bin de la FFT equivale a 0,5 Hz (f = k · fs / N). Solo se usa la mitad positiva del espectro (bins 0 a 44100). Los puntos de corte se escogieron observando dónde se separan los espectros promedio de las clases.
+Con N = 88200 y fs = 44100 Hz, cada bin de la FFT equivale a 0,5 Hz (f = k · fs / N). Se conserva el cálculo actual: las primeras tres bandas llegan hasta el bin 14000 y la cuarta incluye todo el resto de la FFT, también las frecuencias negativas. La gráfica muestra la mitad positiva y marca los cortes con líneas verticales rojas.
 
-| Banda | Bins (k)      | Frecuencia (Hz) |
+| Banda | Bins (k), fin excluido | Frecuencia periódica (Hz), fin excluido |
 |-------|---------------|-----------------|
 | 1     | 0 – 238       | 0 – 119         |
-| 2     | 238 – 1283    | 119 – 641,5     |
-| 3     | 1283 – 4552   | 641,5 – 2276    |
-| 4     | 4552 – 44100  | 2276 – 22050    |
+| 2     | 238 – 4552    | 119 – 2276     |
+| 3     | 4552 – 14000  | 2276 – 7000    |
+| 4     | 14000 – 88200 | 7000 – 44100   |
 
 ### Especies
 
@@ -41,7 +48,6 @@ Los audios provienen de [xeno-canto.org](https://xeno-canto.org) (calidad A).
 |--------------------|--------------------|---------------------|
 | `brant_goose`      | Barnacla carinegra | *Branta bernicla*   |
 | `common_snipe`     | Agachadiza común   | *Gallinago gallinago* |
-| `red_knot`         | Correlimos gordo   | *Calidris canutus*  |
 
 ---
 
@@ -80,7 +86,7 @@ Los audios provienen de [xeno-canto.org](https://xeno-canto.org) (calidad A).
 - Una API key de xeno-canto (se obtiene desde tu cuenta en xeno-canto.org).
 
 ```bash
-pip install numpy matplotlib soundfile librosa requests python-dotenv sounddevice
+pip install -r requirements.txt
 ```
 
 Crea un archivo `.env` en la raíz del proyecto:
@@ -132,7 +138,7 @@ Lee los clips de `data/processed/`, calcula el vector de energías de cada clase
 ### 4. Ejecutar la aplicación (tiempo real)
 
 ```bash
-python -m src.app
+python main.py
 ```
 
 - **Grabar 2 s y clasificar:** captura del micrófono y clasifica.
@@ -151,17 +157,18 @@ Si el modelo no existe, la aplicación avisa que hay que ejecutar primero el pas
   "fs": 44100,
   "n_puntos": 88200,
   "ventana_media_movil": 5,
+  "metodo_entrenamiento": "promedio_vectores_energia",
   "subbandas": [{"banda": 1, "bin_inicio": 0, "bin_fin": 238, "hz_inicio": 0.0, "hz_fin": 119.0}, "..."],
-  "puntos_corte": [238, 1283, 4552],
+  "preprocesamiento": {"version": 1, "quitar_dc": true, "frecuencia_corte_pasaaltos": 300, "orden_filtro": 2, "ventana_media_movil": 5, "umbral_rms": 0.001, "rms_objetivo": 0.05, "ganancia_maxima": 50.0, "pico_maximo": 0.95},
+  "puntos_corte": [238, 4552, 14000],
   "vectores_energia": {
     "brant_goose": [e1, e2, e3, e4],
-    "common_snipe": [e1, e2, e3, e4],
-    "red_knot": [e1, e2, e3, e4]
+    "common_snipe": [e1, e2, e3, e4]
   }
 }
 ```
 
-Al cargarlo, `cargar_modelo` verifica que `fs`, `n_puntos` y los puntos de corte coincidan con el código; si no, falla con un mensaje claro en lugar de clasificar mal.
+Al cargarlo, `cargar_modelo` verifica el método de entrenamiento, los parámetros de preprocesamiento, la frecuencia de muestreo, el número de muestras, el filtro, los cortes y las dimensiones de los vectores. Los modelos anteriores deben regenerarse con `python -m src.core.entrenamiento`.
 
 ---
 
@@ -177,9 +184,8 @@ Al cargarlo, `cargar_modelo` verifica que `fs`, `n_puntos` y los puntos de corte
 
 ## Estado y pendientes
 
-- **Correlimos gordo (`red_knot`):** la mayoría de sus grabaciones son ruido blanco, por lo que no sirve como clase. Hay que reemplazarlo por otra especie (ver [Cambiar una especie](#cambiar-una-especie)).
-- **Sensibilidad al volumen:** las energías son absolutas, así que la distancia al micrófono, la ganancia y el volumen del parlante afectan el resultado. Posible mejora: normalizar los vectores (por ejemplo, dividirlos entre su suma) en entrenamiento y en tiempo real.
-- **Ruido de baja frecuencia y offset DC:** afectan la banda 1. Posible mejora: restar la media de la señal en `preprocesar`.
-- **Validación:** falta medir la precisión con clips que no hayan entrado al promedio de entrenamiento.
+- **Volumen y graves de fondo:** se quita DC, se atenúan los graves con el pasaaltos y se ajusta el nivel del audio antes de la FFT. Los vectores de energía conservan su cálculo original.
+- **Validación:** `python -m src.scripts.evaluar_preprocesamiento` compara cinco preparaciones mediante validación anidada: cinco pliegues externos y tres internos, separando por grabación XC. En 161 clips de 40 grabaciones, la selección pasó del 60,2 % al 87,6 % con distancia euclidiana y del 50,9 % al 87,6 % con resta absoluta. Hubo 20 errores con ambas métricas. Los parámetros se seleccionan usando únicamente los pliegues internos; el informe está en `output/evaluacion_preprocesamiento.json`.
+- **Límite de la evaluación:** es validación interna de un banco ya explorado. Las grabaciones nuevas, el micrófono, la saturación y el ruido de fondo pueden producir resultados distintos. Los silencios se rechazan antes de calcular FFT y distancias.
 
 ---

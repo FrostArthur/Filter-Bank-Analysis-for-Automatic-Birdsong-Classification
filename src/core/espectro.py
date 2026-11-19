@@ -4,11 +4,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import soundfile as sf
 
-from src.scripts.filtro_media_movil import aplicar_filtro_media_movil
+from src.core.energia import PUNTOS_CORTE
+from src.core.preprocesamiento import AudioSilenciosoError, preparar_audio
 
 N_PUNTOS = 88200
 FS = 44100
-CLASES = ("brant_goose", "common_snipe", "red_knot")
+CLASES = ("brant_goose", "common_snipe")
 
 #Calcular el espectro de un audio (según el pseudocódigo del docente)
 def calcularEspectro(audio):
@@ -29,7 +30,6 @@ def graficar_espectros_promedio(k_max=None):
     colores = {
         "brant_goose": "tab:blue",
         "common_snipe": "tab:orange",
-        "red_knot": "tab:green",
     }
 
     figura, eje = plt.subplots(figsize=(12, 6))
@@ -42,7 +42,6 @@ def graficar_espectros_promedio(k_max=None):
         audios = []
         for archivo in archivos:
             audio, frecuencia_muestreo = sf.read(archivo)
-            audio = aplicar_filtro_media_movil(audio, 5)
 
             if frecuencia_muestreo != FS:
                 raise ValueError(
@@ -50,10 +49,13 @@ def graficar_espectros_promedio(k_max=None):
                     f"{frecuencia_muestreo} Hz; se esperaba {FS} Hz"
                 )
 
-            if audio.ndim == 2:
-                audio = audio.mean(axis=1)
+            try:
+                audios.append(preparar_audio(audio, FS))
+            except AudioSilenciosoError:
+                continue
 
-            audios.append(audio)
+        if not audios:
+            raise ValueError(f"No hay audios con nivel suficiente para {clase}")
 
         espectro_promedio = EspectroPromedio(audios)
         eje.plot(
@@ -62,6 +64,10 @@ def graficar_espectros_promedio(k_max=None):
             label=clase,
             color=colores[clase],
         )
+
+    for punto_corte in PUNTOS_CORTE:
+        if punto_corte <= k_fin:
+            eje.axvline(punto_corte, color="crimson", linestyle="--", linewidth=1.2)
 
     eje.set_title("Espectros promedio por tipo de ave")
     eje.set_xlabel("k")

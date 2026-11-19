@@ -7,12 +7,10 @@ from src.core.espectro import FS, N_PUNTOS
 NOMBRES = {
     "brant_goose": "Barnacla carinegra",
     "common_snipe": "Agachadiza común",
-    "red_knot": "Correlimos gordo",
 }
 COLORES_CLASE = {
     "brant_goose": "tab:blue",
     "common_snipe": "tab:orange",
-    "red_knot": "tab:green",
 }
 COLORES_BANDA = ("tab:gray", "tab:purple", "tab:cyan", "tab:olive")
  
@@ -73,6 +71,9 @@ def dibujar(ejes, resultado, clases, vectores):
         ini = max(hz[i], 5.0)
         ejes[1].axvspan(ini, hz[i + 1], alpha=0.15, color=COLORES_BANDA[i],
                         label=f"Banda {i + 1}")
+    for punto_corte in PUNTOS_CORTE:
+        frecuencia_corte = punto_corte * FS / N_PUNTOS
+        ejes[1].axvline(frecuencia_corte, color="crimson", linestyle="--", linewidth=1.2)
     ejes[1].set_xlim(5, FS / 2)
     ejes[1].legend(loc="upper right", fontsize=8)
  

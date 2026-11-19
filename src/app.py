@@ -20,9 +20,9 @@ from matplotlib.figure import Figure
 from src.core.clasificador import METRICAS, analizar
 from src.core.entrenamiento import cargar_modelo
 from src.core.espectro import FS, N_PUNTOS
+from src.core.preprocesamiento import AudioSilenciosoError, medir_nivel_entrada
 from src.graficas import crear_ejes, dibujar, dibujar_vacio, nombre_clase
  
-UMBRAL_RMS = 1e-3   # por debajo de esto la señal es prácticamente silencio
  
 class App:
     def __init__(self, raiz, clases, vectores):
@@ -124,9 +124,16 @@ class App:
     # ------------------------------------------------------------------ análisis
     def _procesar(self, senal, origen):
         self.ultima_senal = (senal, origen)
-        rms = float(np.sqrt(np.mean(senal ** 2)))
         try:
             res = analizar(senal, self.clases, self.vectores, self.metrica.get())
+        except AudioSilenciosoError as error:
+            self.lbl_resultado.config(text="Sin clasificar: audio de baja amplitud")
+            self.lbl_estado.config(
+                text=f"Fuente: {origen}  |  RMS = {error.rms:.6f}  |  "
+                     "Acerca el micrófono o aumenta el nivel de la grabación.")
+            dibujar_vacio(self.ejes)
+            self.canvas.draw_idle()
+            return
         except Exception as e:
             messagebox.showerror("Análisis", str(e))
             return
@@ -136,9 +143,8 @@ class App:
         d = np.sort(res["distancias"])
         margen = (d[1] - d[0]) / d[1] if d[1] > 0 else 0.0
         self.lbl_resultado.config(text=nombre_clase(res["clase"]))
+        rms = medir_nivel_entrada(senal)
         estado = f"Fuente: {origen}  |  RMS = {rms:.4f}  |  margen sobre la 2.ª clase: {margen:.0%}"
-        if rms < UMBRAL_RMS:
-            estado += "  |  ATENCIÓN: señal muy débil (¿micrófono silenciado o muy lejos?)"
         self.lbl_estado.config(text=estado)
  
     def reclasificar(self):

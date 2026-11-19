@@ -21,7 +21,6 @@ N = FS * DURACION
  
 ESPECIES = {
     "common_snipe": ("Gallinago", "gallinago"),
-    "red_knot": ("Calidris", "canutus"),
     "brant_goose": ("Branta", "bernicla"),
 }
  
